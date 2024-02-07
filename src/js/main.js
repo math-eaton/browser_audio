@@ -4,12 +4,15 @@ import { Delaunay } from 'd3-delaunay';
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.height = window.innerHeight
 
 const circles = [];
 const synths = [];
 const isSynthPlaying = [];
 const scale = ["G3", "A3", "C4", "D4", "F4", "G4", "A4", "C5", "D5", "F5"];
+
+// limiter set to -20 dB
+const limiter = new Tone.Limiter(-30).toDestination();
 
 let inactivityTimer;
 const inactivityThreshold = 2000; // 2 seconds of inactivity for example
@@ -26,7 +29,7 @@ for (let i = 0; i < 10; i++) {
       sustain: 0.8,
       release: 1,
     },
-  }).toDestination();
+  }).connect(limiter); // Connect directly to the limiter upon creation
   synths.push(synth);
   isSynthPlaying.push(false);
 }
@@ -57,31 +60,35 @@ function adjustVolumesByProximity(x, y) {
 
   // Sort distances to find the closest three circles
   distances.sort((a, b) => a.distance - b.distance);
-  const closestThree = distances.slice(0, 3);
+  const closestThree = distances.slice(0, 1);
 
   // Reset the canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+// Draw five concentric circles around the mouse cursor
+let radius = 10; // Starting radius for the smallest circle
+let opacity = 1; // Starting opacity for the most opaque circle
+for (let i = 0; i < 50; i++) {
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`; // Dynamically set opacity
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  radius *= 1.1; // Increase radius by 20% for the next circle
+  opacity *= 0.975; // Make each successive circle 20% more transparent
+}
+  
 
   // Draw line from cursor to the closest three circles and adjust synths
   closestThree.forEach(({ index }) => {
     ctx.beginPath();
     ctx.moveTo(x, y); // Start at cursor position
     ctx.lineTo(circles[index].x, circles[index].y); // Draw line to circle center
-    ctx.strokeStyle = 'black';
+    ctx.strokeStyle = 'white';
     ctx.lineWidth = 1;
     ctx.stroke();
   });
 
-  // Deactivate synths not in the closest three, if they are playing
-  synths.forEach((synth, index) => {
-    if (!closestThree.some(circle => circle.index === index)) {
-      if (isSynthPlaying[index]) {
-        synth.triggerRelease();
-        isSynthPlaying[index] = false;
-      }
-    }
-  });
 
   // Redraw all circles
   circles.forEach(circle => {
@@ -91,17 +98,29 @@ function adjustVolumesByProximity(x, y) {
     ctx.fill();
     ctx.strokeStyle = "#fff"; // White border for better visibility
     ctx.stroke();
-  });    
+  });      
+  
 
-  // Activate and adjust volume for the closest three synths
-  closestThree.forEach(({ index, distance }) => {
-    const volumeAdjustment = calculateVolumeAdjustment(distance, closestThree);
-    if (!isSynthPlaying[index]) {
-      synths[index].triggerAttack(scale[index]);
-      isSynthPlaying[index] = true;
-    }
-    synths[index].volume.value = volumeAdjustment;
-  });
+  // // Deactivate synths not in the closest three, if they are playing
+  // synths.forEach((synth, index) => {
+  //   if (!closestThree.some(circle => circle.index === index)) {
+  //     if (isSynthPlaying[index]) {
+  //       synth.triggerRelease();
+  //       isSynthPlaying[index] = false;
+  //     }
+  //   }
+  // });
+
+
+  // // Activate and adjust volume for the closest three synths
+  // closestThree.forEach(({ index, distance }) => {
+  //   const volumeAdjustment = calculateVolumeAdjustment(distance, closestThree);
+  //   if (!isSynthPlaying[index]) {
+  //     synths[index].triggerAttack(scale[index]);
+  //     isSynthPlaying[index] = true;
+  //   }
+  //   synths[index].volume.value = volumeAdjustment;
+  // });
 }
 
 function calculateVolumeAdjustment(distance, closestThree) {
@@ -169,6 +188,11 @@ function fadeVolumes() {
 
 
 draw();
+
+synths.forEach(synth => {
+  synth.connect(limiter); // Connect each synth to the limiter instead of directly to the destination
+  console.log("limiter activated")
+});
 
 // Setup Tone.Meter to monitor the master output
 const meter = new Tone.Meter();
