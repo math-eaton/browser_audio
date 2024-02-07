@@ -36,35 +36,6 @@ const points = circles.map(circle => [circle.x, circle.y]);
 const delaunay = Delaunay.from(points);
 const voronoi = delaunay.voronoi([0, 0, canvas.width, canvas.height]);
 
-// Draw circles
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  circles.forEach((circle, i) => {
-    ctx.beginPath();
-    ctx.arc(circle.x, circle.y, 20, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-function adjustVolumeBasedOnVoronoi(x, y) {
-  const pointIndex = delaunay.find(x, y);
-  circles.forEach((circle, i) => {
-    const distance = Math.sqrt((x - circle.x) ** 2 + (y - circle.y) ** 2);
-    const edgePoints = voronoi.cellPolygon(i);
-    if (!edgePoints) return;
-    const maxDistance = Math.max(...edgePoints.map(([px, py]) => Math.sqrt((px - x) ** 2 + (py - y) ** 2)));
-    const volume = 1 - distance / maxDistance;
-    synths[i].volume.value = Tone.dbToGain(Math.max(volume, -48) * -12);
-
-    if (i === pointIndex && !isSynthPlaying[i]) {
-      synths[i].triggerAttack(scale[i], '+0.1', 0.1);
-      isSynthPlaying[i] = true;
-    } else if (i !== pointIndex && isSynthPlaying[i]) {
-      synths[i].triggerRelease();
-      isSynthPlaying[i] = false;
-    }
-  });
-}
 
 document.documentElement.addEventListener('mousedown', () => {
   Tone.start().then(() => {
@@ -73,22 +44,86 @@ document.documentElement.addEventListener('mousedown', () => {
 });
 
 canvas.addEventListener('mousemove', (e) => {
-  adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
+  // adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
+  adjustVolumesByProximity(e.clientX, e.clientY);
 });
 
-// Draw Voronoi diagram for visual debugging (optional)
-function drawVoronoi() {
+function adjustVolumesByProximity(x, y) {
+  // Calculate distances for all circles
+  const distances = circles.map((circle, index) => ({
+    index,
+    distance: Math.sqrt((x - circle.x) ** 2 + (y - circle.y) ** 2)
+  }));
+
+  // Sort distances to find the closest three circles
+  distances.sort((a, b) => a.distance - b.distance);
+  const closestThree = distances.slice(0, 3);
+
+  // Reset the canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
-  voronoi.render(ctx);
-  ctx.strokeStyle = "#000";
-  ctx.stroke();
+
+
+  // Draw line from cursor to the closest three circles and adjust synths
+  closestThree.forEach(({ index }) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y); // Start at cursor position
+    ctx.lineTo(circles[index].x, circles[index].y); // Draw line to circle center
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Deactivate synths not in the closest three, if they are playing
+  synths.forEach((synth, index) => {
+    if (!closestThree.some(circle => circle.index === index)) {
+      if (isSynthPlaying[index]) {
+        synth.triggerRelease();
+        isSynthPlaying[index] = false;
+      }
+    }
+  });
+
+  // Redraw all circles
+  circles.forEach(circle => {
+    ctx.beginPath();
+    ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Adjust the color and opacity as needed
+    ctx.fill();
+    ctx.strokeStyle = "#fff"; // White border for better visibility
+    ctx.stroke();
+  });    
+
+  // Activate and adjust volume for the closest three synths
+  closestThree.forEach(({ index, distance }) => {
+    const volumeAdjustment = calculateVolumeAdjustment(distance, closestThree);
+    if (!isSynthPlaying[index]) {
+      synths[index].triggerAttack(scale[index]);
+      isSynthPlaying[index] = true;
+    }
+    synths[index].volume.value = volumeAdjustment;
+  });
+}
+
+function calculateVolumeAdjustment(distance, closestThree) {
+  // Example normalization logic, replace with your exponential attenuation or other logic
+  const maxDistance = Math.max(...closestThree.map(c => c.distance));
+  const volume = 1 - (distance / maxDistance);
+  return Tone.dbToGain(volume * -12); // Convert to decibels or another scale as needed
+}
+
+// Draw Voronoi diagram for visual debugging (optional)
+function draw() {
+  // ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // ctx.beginPath();
+  // voronoi.render(ctx);
+  // ctx.strokeStyle = "#000";
+  // ctx.stroke();
 
   // Draw circles on top of the Voronoi diagram
   circles.forEach(circle => {
     ctx.beginPath();
-    ctx.arc(circle.x, circle.y, 20, 0, Math.PI * 2, true);
-    ctx.fillStyle = "rgba(255, 0, 0, 0.5)"; // Semi-transparent circles
+    ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2, true);
+    ctx.fillStyle = "rgba(0, 0, 0, 1)";  //circles
     ctx.fill();
     ctx.strokeStyle = "#fff"; // White border for better visibility
     ctx.stroke();
@@ -97,7 +132,8 @@ function drawVoronoi() {
 }
 
 canvas.addEventListener('mousemove', (e) => {
-  adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
+  // adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
+  adjustVolumesByProximity(e.clientX, e.clientY);
   // Optionally, redraw Voronoi and circles if dynamic visual feedback is desired
   // drawVoronoiAndCircles();
   
@@ -113,7 +149,7 @@ function fadeVolumes() {
       // Example of a linear fade out over 1 second. Adjust as necessary for smoother fades.
       let currentVolume = synth.volume.value; // Get the current volume
       const fadeDuration = 1000; // Duration of the fade in milliseconds
-      const fadeStepDuration = 50; // How often to step the fade (in milliseconds)
+      const fadeStepDuration = 500; // How often to step the fade (in milliseconds)
       const fadeSteps = fadeDuration / fadeStepDuration;
       const volumeStep = currentVolume / fadeSteps; // Volume decrease per step
       
@@ -121,7 +157,7 @@ function fadeVolumes() {
         currentVolume -= volumeStep;
         synth.volume.value = currentVolume;
         
-        if (currentVolume <= Tone.dbToGain(-48)) {
+        if (currentVolume <= Tone.dbToGain(-500)) {
           clearInterval(fadeInterval);
           synth.triggerRelease(); // Stop the synth if volume is low enough
           isSynthPlaying[index] = false;
@@ -132,4 +168,32 @@ function fadeVolumes() {
 }
 
 
-drawVoronoi();
+draw();
+
+// Setup Tone.Meter to monitor the master output
+const meter = new Tone.Meter();
+Tone.Destination.connect(meter);
+
+// Initialize the VU meter canvas
+const vuCanvas = document.getElementById('vuMeter');
+const vuCtx = vuCanvas.getContext('2d');
+vuCanvas.height = window.innerHeight; // Set height dynamically based on the window size
+
+function drawVUMeter() {
+  requestAnimationFrame(drawVUMeter);
+
+  // Clear the canvas
+  vuCtx.clearRect(0, 0, vuCanvas.width, vuCanvas.height);
+
+  // Get the volume level from the meter, converting it to a positive value
+  const level = Math.abs(meter.getValue());
+
+  // Map the level to the height of the canvas. You might need to adjust this scaling.
+  const height = level * vuCanvas.height;
+
+  // Draw the meter
+  vuCtx.fillStyle = 'green';
+  vuCtx.fillRect(0, vuCanvas.height - height, vuCanvas.width, height);
+}
+
+drawVUMeter(); // Start the drawing loop
