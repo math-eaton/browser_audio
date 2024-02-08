@@ -26,7 +26,7 @@ document.documentElement.addEventListener('mousedown', () => {
 });
 
 // Initialize synths and circles
-for (let i = 0; i < 17; i++) {
+for (let i = 0; i < 15; i++) {
   const x = Math.random() * canvas.width;
   const y = Math.random() * canvas.height;
   circles.push({ x, y });
@@ -157,36 +157,115 @@ synths.forEach(synth => {
   console.log("limiter activated")
 });
 
+// function animate() {
+//   const now = Date.now();
+//   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+//   const pastOpacityDecayFactor = 0.85; // Controls fading for past copies
+//   const latestMousePosition = mousePositions[0]; // Assumes the first position is the latest
+
+//   if (latestMousePosition) {
+//       // Calculate distances and sort circles by proximity to the latest mouse position
+//       let distances = circles.map((circle, index) => ({
+//           index,
+//           distance: Math.sqrt(Math.pow(latestMousePosition.x - circle.x, 2) + Math.pow(latestMousePosition.y - circle.y, 2)),
+//       })).sort((a, b) => a.distance - b.distance);
+
+//       // Draw lines with descending opacity based on nearness
+//       distances.forEach((d, i, arr) => {
+//           const opacity = 1 - (i / arr.length);
+//           ctx.beginPath();
+//           ctx.moveTo(latestMousePosition.x, latestMousePosition.y);
+//           ctx.lineTo(circles[d.index].x, circles[d.index].y);
+//           ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+//           ctx.lineWidth = 1;
+//           ctx.stroke();
+//       });
+//   }
+
+//   // Draw concentric circles and past copies with adjusted opacity
+//   mousePositions.forEach((pos, index) => {
+//       let ageInSeconds = (now - pos.time) / 1000;
+//       let baseOpacity = Math.max(1 - ageInSeconds / 3, 0);
+//       let isMostRecentPosition = index === 0;
+
+//       let radius = 7;
+//       for (let i = 0; i < scale.length; i++) {
+//           let decayFactor = isMostRecentPosition ? 0.8 : pastOpacityDecayFactor;
+//           let circleOpacity = Math.pow(decayFactor, i) * baseOpacity;
+
+//           ctx.beginPath();
+//           ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+//           ctx.strokeStyle = `rgba(255, 255, 255, ${circleOpacity})`;
+//           ctx.lineWidth = 1;
+//           ctx.stroke();
+//           radius *= 1.2; // Adjust radius increment as needed
+//       }
+//   });
+
+//   // Ensure synth-circles are always visible
+//   circles.forEach(circle => {
+//       ctx.beginPath();
+//       ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2);
+//       ctx.fillStyle = "rgba(0, 0, 0, 1)";
+//       ctx.fill();
+//       ctx.strokeStyle = "#fff";
+//       ctx.stroke();
+//   });
+
+//   // Filter out positions that have faded completely
+//   mousePositions = mousePositions.filter(pos => (now - pos.time) / 1000 <= 5.5);
+
+//   requestAnimationFrame(animate); // Continue the animation loop
+// }
+
+
 function animate() {
   const now = Date.now();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // This factor controls the decay of past circle copies.
-  // A value less than 1.0 causes quicker fading for past copies.
-  const pastOpacityDecayFactor = 0.7; // Adjust this to make past copies fade faster or slower
+  // Assuming the first position in mousePositions is the current mouse cursor position
+  const currentMousePos = mousePositions.length > 0 ? mousePositions[0] : null;
 
-  mousePositions.forEach((pos, index) => {
-      let ageInSeconds = (now - pos.time) / 1000;
-      let baseOpacity = Math.max(1 - ageInSeconds / 3, 0); // Base fading based on age
+  if (currentMousePos) {
+      // Initialize variables for drawing concentric circles
+      let radius = 10; // Starting radius for the smallest circle
+      const scalingFactor = 1.4; // Increase radius by 40% for the next circle
+      let opacity = 1; // Starting opacity for the most opaque circle
+      const maxCircles = 10; // Number of concentric circles
+      let maxRadius = radius * Math.pow(scalingFactor, maxCircles - 1); // Calculate the outermost radius
 
-      // Determine if this is the most recent position
-      let isMostRecentPosition = index === 0;
-
-      let radius = 10;
-      for (let i = 0; i < scale.length; i++) {
-          // Apply a different decay factor for past copies
-          let decayFactor = isMostRecentPosition ? 0.8 : pastOpacityDecayFactor;
-          let circleOpacity = Math.pow(decayFactor, i) * baseOpacity;
-
+      // Draw concentric circles
+      for (let i = 0; i < maxCircles; i++) {
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(255, 255, 255, ${circleOpacity})`;
+          ctx.arc(currentMousePos.x, currentMousePos.y, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
           ctx.lineWidth = 1;
           ctx.stroke();
-          radius *= 1.25; // Increase radius for the next circle
+          radius *= scalingFactor; // Increase radius for the next circle
+          opacity *= 0.85; // Decrease opacity for the next circle
       }
-  });
 
+      // Calculate distances from current mouse position to each circle
+      let distances = circles.map((circle, index) => ({
+          index,
+          distance: Math.sqrt(Math.pow(currentMousePos.x - circle.x, 2) + Math.pow(currentMousePos.y - circle.y, 2)),
+      })).filter(d => d.distance <= maxRadius) // Filter circles within the outermost radius
+        .sort((a, b) => a.distance - b.distance); // Sort by closeness
+
+      // Draw lines to circles within the outermost radius with descending opacity
+      distances.forEach((d, i) => {
+          const lineOpacity = 1 - (0.666 * i / (distances.length - 1)); // Calculate opacity
+          ctx.beginPath();
+          ctx.moveTo(currentMousePos.x, currentMousePos.y);
+          ctx.lineTo(circles[d.index].x, circles[d.index].y);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${lineOpacity})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+      });
+  }
+
+  // Ensure synth-circles are always visible
   circles.forEach(circle => {
       ctx.beginPath();
       ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2);
@@ -198,10 +277,11 @@ function animate() {
 
   mousePositions = mousePositions.filter(pos => (now - pos.time) / 1000 <= 5.5);
 
-  requestAnimationFrame(animate);
+  requestAnimationFrame(animate); // Continue the loop
 }
 
-// Start the animation loop
+
+
 animate();
 
 
