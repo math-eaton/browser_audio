@@ -1,5 +1,4 @@
 import * as Tone from 'tone';
-import { Delaunay } from 'd3-delaunay';
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -42,11 +41,6 @@ for (let i = 0; i < 15; i++) {
   isSynthPlaying.push(false);
 }
 
-// Initialize Voronoi diagram
-const points = circles.map(circle => [circle.x, circle.y]);
-const delaunay = Delaunay.from(points);
-const voronoi = delaunay.voronoi([0, 0, canvas.width, canvas.height]);
-
 
 document.documentElement.addEventListener('mousedown', () => {
   Tone.start().then(() => {
@@ -64,7 +58,6 @@ function calculateVolumeAdjustment(distance, nearestNode) {
 
 
 canvas.addEventListener('mousemove', (e) => {
-  // adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
   adjustVolumesByProximity(e.clientX, e.clientY);
 });
 
@@ -101,15 +94,9 @@ function adjustVolumesByProximity(x, y) {
 }
 
 
-// Draw Voronoi diagram for visual debugging (optional)
 function draw() {
-  // ctx.clearRect(0, 0, canvas.width, canvas.height);
-  // ctx.beginPath();
-  // voronoi.render(ctx);
-  // ctx.strokeStyle = "white";
-  // ctx.stroke();
 
-  // Draw circles on top of the Voronoi diagram
+  // Draw circles
   circles.forEach(circle => {
     ctx.beginPath();
     ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2, true);
@@ -122,10 +109,7 @@ function draw() {
 }
 
 canvas.addEventListener('mousemove', (e) => {
-  // adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
   adjustVolumesByProximity(e.clientX, e.clientY);
-  // Optionally, redraw Voronoi and circles if dynamic visual feedback is desired
-  // drawVoronoiAndCircles();
   
   // Reset the inactivity timer on mouse move
   clearTimeout(inactivityTimer);
