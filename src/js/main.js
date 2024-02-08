@@ -12,7 +12,7 @@ const isSynthPlaying = [];
 const scale = ["G2", "A2", "C2", "D2", "F2", "G2", "A2", "G3", "A3", "C3", "D3", "F3", "G3", "A3", "C4", "D4", "F4"];
 
 // limiter set to -20 dB
-const limiter = new Tone.Limiter(-30).toDestination();
+const limiter = new Tone.Limiter(-10).toDestination();
 
 let inactivityTimer;
 const inactivityThreshold = 2000; // 2 seconds of inactivity for example
@@ -54,150 +54,6 @@ document.documentElement.addEventListener('mousedown', () => {
   });
 });
 
-canvas.addEventListener('mousemove', (e) => {
-  // adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
-  adjustVolumesByProximity(e.clientX, e.clientY);
-});
-
-let volumeLevels = []
-// let baseVolume = []
-
-
-// function adjustVolumesByProximity(x, y) {
-//   // Calculate distances for all circles
-//   const distances = circles.map((circle, index) => ({
-//     index,
-//     distance: Math.sqrt((x - circle.x) ** 2 + (y - circle.y) ** 2)
-//   }));
-
-//   // Reset the canvas
-//   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-//   volumeLevels = [];
-
-//   // Draw concentric circles around the mouse cursor
-//   let radius = 20; // Starting radius for the smallest circle
-//   let opacity = 1; // Starting opacity for the most opaque circle
-//   let baseVolume = 12; // Reset baseVolume for each call
-
-
-//   for (let i = 0; i < 7; i++) {
-//     ctx.beginPath();
-//     ctx.arc(x, y, radius, 0, Math.PI * 2);
-//     ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-//     ctx.lineWidth = 1;
-//     ctx.stroke();
-
-//     // Store the radius and corresponding volume level
-//     volumeLevels.push({ radius, volume: baseVolume });
-
-//     radius *= 1.5; // Increase radius for the next circle
-//     opacity *= 0.8; // Decrease opacity for the next circle
-//     baseVolume -= 0.24; // Decrease volume level for the next zone
-//   }
-
-//   // Adjust synths based on proximity and concentric circle zone
-//   circles.forEach((circle, index) => {
-//     const distanceToCursor = Math.sqrt((circle.x - x) ** 2 + (circle.y - y) ** 2);
-//     const zone = volumeLevels.find(vl => distanceToCursor <= vl.radius);
-  
-//     if (zone && Tone.context.state === 'running') {
-//       const volumeAdjustment = Math.log1p(zone.radius - distanceToCursor) / Math.log1p(zone.radius) * (zone.volume - 48);
-//       if (!isSynthPlaying[index]) {
-//         synths[index].triggerAttack(scale[index % scale.length], Tone.now());
-//         isSynthPlaying[index] = true;
-//       }
-//       // Smoothly transition volume
-//       synths[index].volume.rampTo(volumeAdjustment, 0.1); // Smooth transition over n seconds
-//     } else if (isSynthPlaying[index]) {
-//       synths[index].triggerRelease();
-//       isSynthPlaying[index] = false;
-//     }
-//   });
-
-//   // Redraw all circles for visual feedback
-//   circles.forEach(circle => {
-//     ctx.beginPath();
-//     ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2);
-//     ctx.fillStyle = "rgba(0, 0, 0, 1)";
-//     ctx.fill();
-//     ctx.strokeStyle = "#fff";
-//     ctx.stroke();
-//   });
-// }
-
-function adjustVolumesByProximity(x, y) {
-  // Reset the canvas
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Calculate distances for all circles and sort them
-  let distances = circles.map((circle, index) => ({
-    index,
-    distance: Math.sqrt((x - circle.x) ** 2 + (y - circle.y) ** 2)
-  }));
-
-
-
-  // Determine the outermost concentric circle's radius
-  let radius = 10; // Starting radius for the smallest circle
-  let maxRadius = radius; // Initialize maxRadius with the starting radius
-  let opacity = 1; // Starting opacity for the most opaque circle
-  for (let i = 0; i < 10; i++) {
-    if (i == 9) { // On the last iteration, calculate the outermost radius
-      maxRadius = radius;
-    }
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    radius *= 1.4; // Increase for the next circle
-    opacity *= 0.85; // Decrease for the next circle
-  }
-
-  // Filter nodes within the outermost concentric circle and sort by closeness
-  distances = distances.filter(d => d.distance <= maxRadius).sort((a, b) => a.distance - b.distance);
-
-  // Draw lines to these nodes with varying opacity
-  distances.forEach((d, i) => {
-    const lineOpacity = 1 - (0.666 * i / (distances.length - 1)); // Calculate opacity
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(circles[d.index].x, circles[d.index].y);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${lineOpacity})`; // Use calculated opacity
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  });
-
-  // Adjust synths based on continuous distance rather than discrete zones
-  circles.forEach((circle, index) => {
-    const distanceToCursor = Math.sqrt((circle.x - x) ** 2 + (circle.y - y) ** 2);
-    const normalizedDistance = Math.min(distanceToCursor / maxRadius, 1); // Normalize distance to [0, 1]
-
-    if (Tone.context.state === 'running') {
-      if (!isSynthPlaying[index]) {
-        synths[index].triggerAttack(scale[index % scale.length], Tone.now());
-        isSynthPlaying[index] = true;
-      }
-      const volume = -((1 - Math.sqrt(1 - normalizedDistance)) * 48); // Scale volume between 0 and -48 dB
-      synths[index].volume.rampTo(volume, 0.1); // Smooth transition to the calculated volume
-    } else if (isSynthPlaying[index]) {
-      synths[index].triggerRelease();
-      isSynthPlaying[index] = false;
-    }
-  });
-
-  // Redraw all circles for visual feedback
-  circles.forEach(circle => {
-    ctx.beginPath();
-    ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0, 0, 0, 1)";
-    ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.stroke();
-  });
-}
-
 
 function calculateVolumeAdjustment(distance, nearestNode) {
   // Example normalization logic, replace with your exponential attenuation or other logic
@@ -205,6 +61,45 @@ function calculateVolumeAdjustment(distance, nearestNode) {
   const volume = 1 - (distance / maxDistance);
   return Tone.dbToGain(volume * -12); // Convert to decibels or another scale as needed
 }
+
+
+canvas.addEventListener('mousemove', (e) => {
+  // adjustVolumeBasedOnVoronoi(e.clientX, e.clientY);
+  adjustVolumesByProximity(e.clientX, e.clientY);
+});
+
+let volumeLevels = []
+// let baseVolume = []
+let mousePositions = [];
+
+function adjustVolumesByProximity(x, y) {
+  const now = Date.now();
+  mousePositions.unshift({ x, y, time: now, opacity: 1 }); // Record new mouse position with timestamp
+  if (mousePositions.length > 24) {
+      mousePositions.pop(); // Keep the array size limited to 24
+  }
+
+  // Adjust synth volumes based on the proximity of the mouse to the circles
+  circles.forEach((circle, index) => {
+      const distanceToCursor = Math.sqrt((circle.x - x) ** 2 + (circle.y - y) ** 2);
+      let maxRadius = 10 * Math.pow(1.5, 9); // Assuming this is the outermost circle radius
+      const normalizedDistance = Math.min(distanceToCursor / maxRadius, 1); // Normalize distance
+
+      if (Tone.context.state === 'running') {
+          if (!isSynthPlaying[index]) {
+              synths[index].triggerAttack(scale[index % scale.length], Tone.now());
+              isSynthPlaying[index] = true;
+          }
+          // Adjust volume based on proximity
+          const volume = -((1 - Math.sqrt(1 - normalizedDistance)) * 48); // Example volume adjustment
+          synths[index].volume.rampTo(volume, 0.1);
+      } else if (isSynthPlaying[index]) {
+          synths[index].triggerRelease();
+          isSynthPlaying[index] = false;
+      }
+  });
+}
+
 
 // Draw Voronoi diagram for visual debugging (optional)
 function draw() {
@@ -241,23 +136,18 @@ canvas.addEventListener('mousemove', (e) => {
 function fadeVolumes() {
   synths.forEach((synth, index) => {
     if (isSynthPlaying[index]) {
-      // Example of a linear fade out over 1 second. Adjust as necessary for smoother fades.
-      let currentVolume = synth.volume.value; // Get the current volume
-      const fadeDuration = 1000; // Duration of the fade in milliseconds
-      const fadeStepDuration = 500; // How often to step the fade (in milliseconds)
-      const fadeSteps = fadeDuration / fadeStepDuration;
-      const volumeStep = currentVolume / fadeSteps; // Volume decrease per step
-      
-      const fadeInterval = setInterval(() => {
-        currentVolume -= volumeStep;
-        synth.volume.value = currentVolume;
-        
-        if (currentVolume <= Tone.dbToGain(-500)) {
-          clearInterval(fadeInterval);
-          synth.triggerRelease(); // Stop the synth if volume is low enough
-          isSynthPlaying[index] = false;
-        }
-      }, fadeStepDuration);
+      // Define the target volume to fade out to, e.g., -Infinity for complete silence
+      const targetVolume = -Infinity; // Tone.js handles -Infinity as silence
+      const fadeDuration = 1; // Duration of the fade in seconds
+
+      // Start the volume ramp towards the target volume over the specified duration
+      synth.volume.rampTo(targetVolume, fadeDuration);
+
+      // After the fade is complete, stop the synth
+      setTimeout(() => {
+        synth.triggerRelease();
+        isSynthPlaying[index] = false;
+      }, fadeDuration * 1000); // Convert fadeDuration to milliseconds for setTimeout
     }
   });
 }
@@ -266,6 +156,54 @@ synths.forEach(synth => {
   synth.connect(limiter); // Connect each synth to the limiter instead of directly to the destination
   console.log("limiter activated")
 });
+
+function animate() {
+  const now = Date.now();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // This factor controls the decay of past circle copies.
+  // A value less than 1.0 causes quicker fading for past copies.
+  const pastOpacityDecayFactor = 0.7; // Adjust this to make past copies fade faster or slower
+
+  mousePositions.forEach((pos, index) => {
+      let ageInSeconds = (now - pos.time) / 1000;
+      let baseOpacity = Math.max(1 - ageInSeconds / 3, 0); // Base fading based on age
+
+      // Determine if this is the most recent position
+      let isMostRecentPosition = index === 0;
+
+      let radius = 10;
+      for (let i = 0; i < scale.length; i++) {
+          // Apply a different decay factor for past copies
+          let decayFactor = isMostRecentPosition ? 0.8 : pastOpacityDecayFactor;
+          let circleOpacity = Math.pow(decayFactor, i) * baseOpacity;
+
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${circleOpacity})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          radius *= 1.25; // Increase radius for the next circle
+      }
+  });
+
+  circles.forEach(circle => {
+      ctx.beginPath();
+      ctx.arc(circle.x, circle.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0, 0, 0, 1)";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+  });
+
+  mousePositions = mousePositions.filter(pos => (now - pos.time) / 1000 <= 5.5);
+
+  requestAnimationFrame(animate);
+}
+
+// Start the animation loop
+animate();
+
 
 
 draw();
