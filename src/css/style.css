@@ -1,11 +1,12 @@
 body{
   background-color: black;
+  overflow: hidden;
+  cursor: none;
 }
 
 #canvas{ 
   width: 100vw;
   height: 100vh;
-  /* overflow: hidden; */
 }
 
 #vuMeter{
